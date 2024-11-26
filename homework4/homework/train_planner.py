@@ -88,7 +88,7 @@ def train(
         val_loss /= len(val_loader)
         print(f"Epoch {epoch+1}/{num_epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
 
-    model_path = save_model(model, name=f"{model_name}_final")
+    model_path = save_model(model)
     print(f"Model saved at {model_path}")
 
 
