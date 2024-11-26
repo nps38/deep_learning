@@ -47,31 +47,50 @@ def train(
     optimizer = Adam(model.parameters(), lr=lr)
 
     # Training loop
+    # Training loop
     for epoch in range(num_epoch):
         model.train()
         train_loss = 0.0
+        total_longitudinal_error = 0.0
+        total_lateral_error = 0.0
 
         for batch in train_loader:
-            track_left = batch["track_left"].to(device)
-            track_right = batch["track_right"].to(device)
-            waypoints = batch["waypoints"].to(device)
-            waypoints_mask = batch["waypoints_mask"].to(device)
+            track_left = batch["track_left"].to(device)  # (B, n_track, 2)
+            track_right = batch["track_right"].to(device)  # (B, n_track, 2)
+            waypoints = batch["waypoints"].to(device)  # (B, n_waypoints, 2)
+            waypoints_mask = batch["waypoints_mask"].to(device)  # (B, n_waypoints)
 
+            # Mask waypoints for clean targets
             waypoints = waypoints * waypoints_mask.unsqueeze(-1)
 
+            # Forward pass
             optimizer.zero_grad()
             predictions = model(track_left=track_left, track_right=track_right)
+            
+            # Compute loss (e.g., MSE)
             loss = criterion(predictions, waypoints)
             loss.backward()
             optimizer.step()
 
+            # Calculate longitudinal and lateral errors for this batch
+            longitudinal_error = torch.abs(predictions[:, :, 0] - waypoints[:, :, 0])  # x-axis error
+            lateral_error = torch.abs(predictions[:, :, 1] - waypoints[:, :, 1])  # y-axis error
+
+            total_longitudinal_error += longitudinal_error.sum().item()
+            total_lateral_error += lateral_error.sum().item()
+            
             train_loss += loss.item()
 
+        # Average loss over the epoch
         train_loss /= len(train_loader)
+        total_longitudinal_error /= len(train_loader.dataset)
+        total_lateral_error /= len(train_loader.dataset)
 
-        # Validation
+        # Validation loop
         model.eval()
         val_loss = 0.0
+        val_longitudinal_error = 0.0
+        val_lateral_error = 0.0
 
         with torch.no_grad():
             for batch in val_loader:
@@ -83,13 +102,31 @@ def train(
                 waypoints = waypoints * waypoints_mask.unsqueeze(-1)
                 predictions = model(track_left=track_left, track_right=track_right)
                 loss = criterion(predictions, waypoints)
+
+                # Calculate longitudinal and lateral errors for validation
+                longitudinal_error = torch.abs(predictions[:, :, 0] - waypoints[:, :, 0])  # x-axis error
+                lateral_error = torch.abs(predictions[:, :, 1] - waypoints[:, :, 1])  # y-axis error
+
+                val_longitudinal_error += longitudinal_error.sum().item()
+                val_lateral_error += lateral_error.sum().item()
+
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
-        print(f"Epoch {epoch+1}/{num_epoch}, Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}")
+        val_longitudinal_error /= len(val_loader.dataset)
+        val_lateral_error /= len(val_loader.dataset)
 
-    model_path = save_model(model)
-    print(f"Model saved at {model_path}")
+        # Logging
+        print(f"Epoch {epoch+1}/{num_epoch}, "
+            f"Train Loss: {train_loss:.4f}, Val Loss: {val_loss:.4f}, "
+            f"Train Longitudinal Error: {total_longitudinal_error:.4f}, "
+            f"Train Lateral Error: {total_lateral_error:.4f}, "
+            f"Val Longitudinal Error: {val_longitudinal_error:.4f}, "
+            f"Val Lateral Error: {val_lateral_error:.4f}")
+
+        # Save the model
+        model_path = save_model(model)
+        print(f"Model saved at {model_path}")
 
 
 if __name__ == "__main__":

@@ -106,20 +106,28 @@ class TransformerPlanner(nn.Module):
         B = track_left.size(0)
         # Combine left and right tracks
         x = torch.cat([track_left, track_right], dim=1)  # Shape: (B, n_track * 2, 2)
-
+        print(f"x (after concatenation): {x.shape}")
+        
         # Embed input points
         x = self.input_embed(x)  # Shape: (B, n_track * 2, d_model)
-
+        print(f"x (after input embedding): {x.shape}")
+        
         # Apply Transformer encoder
         x = self.encoder(x.permute(1, 0, 2))  # Shape: (n_track * 2, B, d_model)
-
+        print(f"x (after transformer encoder): {x.shape}")
+        
         # Query waypoints
         queries = self.query_embed.weight.unsqueeze(1).expand(-1, B, -1)  # Shape: (n_waypoints, B, d_model)
-        waypoint_features = F.relu(torch.einsum('qlb,nlb->nq', queries, x))  # Attention mechanism
+        print(f"queries: {queries.shape}")
         
+        waypoint_features = F.relu(torch.einsum('qbd,nbd->nbq', queries, x))  # Attention mechanism
+        print(f"waypoint_features (after attention mechanism): {waypoint_features.shape}")
+        waypoint_features = waypoint_features.permute(1, 0, 2)
         # Output waypoints
         waypoints = self.fc_out(waypoint_features)
-        return waypoints.view(B, self.n_waypoints, 2)
+        print(f"waypoints (after fc_out): {waypoints.shape}")
+        
+        return waypoints
 
 
 class CNNPlanner(torch.nn.Module):
