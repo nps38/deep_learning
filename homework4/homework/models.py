@@ -80,6 +80,10 @@ class TransformerPlanner(nn.Module):
 
         # Query embeddings for waypoints
         self.query_embed = nn.Embedding(n_waypoints, d_model)
+        
+        # Transformer decoder
+        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead)
+        self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
 
         # Output layer to predict waypoints
         self.fc_out = nn.Linear(d_model, 2)
@@ -104,29 +108,31 @@ class TransformerPlanner(nn.Module):
             torch.Tensor: future waypoints with shape (b, n_waypoints, 2)
         """
         B = track_left.size(0)
+        
         # Combine left and right tracks
         x = torch.cat([track_left, track_right], dim=1)  # Shape: (B, n_track * 2, 2)
         print(f"x (after concatenation): {x.shape}")
-        
+
         # Embed input points
         x = self.input_embed(x)  # Shape: (B, n_track * 2, d_model)
         print(f"x (after input embedding): {x.shape}")
-        
-        # Apply Transformer encoder
-        x = self.encoder(x.permute(1, 0, 2))  # Shape: (n_track * 2, B, d_model)
-        print(f"x (after transformer encoder): {x.shape}")
-        
+
+        # Apply Transformer encoder to get encoded features of track boundaries
+        enc_output = self.encoder(x.permute(1, 0, 2))  # Shape: (n_track * 2, B, d_model)
+        print(f"enc_output (after transformer encoder): {enc_output.shape}")
+
         # Query waypoints
         queries = self.query_embed.weight.unsqueeze(1).expand(-1, B, -1)  # Shape: (n_waypoints, B, d_model)
         print(f"queries: {queries.shape}")
-        
-        waypoint_features = F.relu(torch.einsum('qbd,nbd->nbq', queries, x))  # Attention mechanism
-        print(f"waypoint_features (after attention mechanism): {waypoint_features.shape}")
-        waypoint_features = waypoint_features.permute(1, 0, 2)
+
+        # Apply Transformer decoder (cross-attention mechanism)
+        waypoint_features = self.decoder(queries.permute(1, 0, 2), enc_output)  # Shape: (n_waypoints, B, d_model)
+        print(f"waypoint_features (after transformer decoder): {waypoint_features.shape}")
+
         # Output waypoints
-        waypoints = self.fc_out(waypoint_features)
+        waypoints = self.fc_out(waypoint_features)  # Shape: (B, n_waypoints, 2)
         print(f"waypoints (after fc_out): {waypoints.shape}")
-        
+
         return waypoints
 
 
