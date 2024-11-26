@@ -9,7 +9,7 @@ import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
 import torch.nn as nn
-from models import load_model, save_model
+from .models import load_model, save_model
 from datasets.road_dataset import RoadDataset
 
 def train(
