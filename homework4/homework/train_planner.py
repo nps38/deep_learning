@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch.optim import Adam
 import torch.nn as nn
 from .models import load_model, save_model
-from .datasets.road_dataset import RoadDataset
+from .datasets.road_dataset import load_data
 import argparse
 
 def train(
@@ -24,11 +24,22 @@ def train(
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # Load dataset
-    train_dataset = RoadDataset(split="train", transform=transform_pipeline)
-    val_dataset = RoadDataset(split="val", transform=transform_pipeline)
-
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, shuffle=False, num_workers=num_workers)
+    train_loader = load_data(
+        dataset_path="drive_data/train",  # Replace with the actual path
+        transform_pipeline=transform_pipeline,
+        return_dataloader=True,
+        num_workers=num_workers,
+        batch_size=batch_size,
+        shuffle=True,
+    )
+    val_loader = load_data(
+        dataset_path="drive_data/val",  # Replace with the actual path
+        transform_pipeline=transform_pipeline,
+        return_dataloader=True,
+        num_workers=num_workers,
+        batch_size=batch_size,
+        shuffle=False,
+    )
 
     # Initialize model
     model = load_model(model_name, n_track=10, n_waypoints=3).to(device)
