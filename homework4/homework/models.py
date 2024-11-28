@@ -14,6 +14,7 @@ class MLPPlanner(nn.Module):
         self,
         n_track: int = 10,
         n_waypoints: int = 3,
+        dropout_rate: float = 0.5,
     ):
         """
         Args:
@@ -24,11 +25,13 @@ class MLPPlanner(nn.Module):
 
         self.n_track = n_track
         self.n_waypoints = n_waypoints
+        self.dropout_rate = dropout_rate
         
         # Define the MLP layers
         self.fc1 = nn.Linear(n_track * 4, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, n_waypoints * 2)
+        self.dropout = nn.Dropout(p=dropout_rate)
 
     def forward(
         self,
@@ -52,7 +55,9 @@ class MLPPlanner(nn.Module):
         B = track_left.size(0)
         x = torch.cat([track_left, track_right], dim=-1).view(B, -1)
         x = F.relu(self.fc1(x))
+        x = self.dropout(x)
         x = F.relu(self.fc2(x))
+        x = self.dropout(x)
         x = self.fc3(x)
         return x.view(B, self.n_waypoints, 2)
 

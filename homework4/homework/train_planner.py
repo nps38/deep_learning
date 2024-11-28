@@ -42,9 +42,9 @@ def train(
     )
 
     # Initialize model
-    model = load_model(model_name, n_track=10, n_waypoints=3).to(device)
+    model = load_model(model_name, n_track=10, n_waypoints=3, dropout_rate=0.5).to(device)
     criterion = nn.MSELoss()  # Suitable for real-valued regression
-    optimizer = Adam(model.parameters(), lr=lr)
+    optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 
     is_cnn_planner = model_name.lower() == "cnn_planner"  # Check if the model is CNNPlanner
 
