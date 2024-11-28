@@ -139,10 +139,12 @@ class TransformerPlanner(nn.Module):
 class CNNPlanner(torch.nn.Module):
     def __init__(
         self,
+        n_track: int = 10,
         n_waypoints: int = 3,
     ):
         super().__init__()
 
+        self.n_track = n_track
         self.n_waypoints = n_waypoints
 
         self.register_buffer("input_mean", torch.as_tensor(INPUT_MEAN), persistent=False)

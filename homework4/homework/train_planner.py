@@ -46,7 +46,8 @@ def train(
     criterion = nn.MSELoss()  # Suitable for real-valued regression
     optimizer = Adam(model.parameters(), lr=lr)
 
-    # Training loop
+    is_cnn_planner = model_name.lower() == "cnn_planner"  # Check if the model is CNNPlanner
+
     # Training loop
     for epoch in range(num_epoch):
         model.train()
@@ -55,18 +56,28 @@ def train(
         total_lateral_error = 0.0
 
         for batch in train_loader:
-            track_left = batch["track_left"].to(device)  # (B, n_track, 2)
-            track_right = batch["track_right"].to(device)  # (B, n_track, 2)
-            waypoints = batch["waypoints"].to(device)  # (B, n_waypoints, 2)
-            waypoints_mask = batch["waypoints_mask"].to(device)  # (B, n_waypoints)
+            if is_cnn_planner:
+                # For CNNPlanner: Use image input
+                image = batch["image"].to(device)  # (B, 3, 96, 128)
+                waypoints = batch["waypoints"].to(device)  # (B, n_waypoints, 2)
+                waypoints_mask = batch["waypoints_mask"].to(device)  # (B, n_waypoints)
+            else:
+                # For TransformerPlanner/MLPPlanner: Use track inputs
+                track_left = batch["track_left"].to(device)  # (B, n_track, 2)
+                track_right = batch["track_right"].to(device)  # (B, n_track, 2)
+                waypoints = batch["waypoints"].to(device)  # (B, n_waypoints, 2)
+                waypoints_mask = batch["waypoints_mask"].to(device)  # (B, n_waypoints)
 
             # Mask waypoints for clean targets
             waypoints = waypoints * waypoints_mask.unsqueeze(-1)
 
             # Forward pass
             optimizer.zero_grad()
-            predictions = model(track_left=track_left, track_right=track_right)
-            
+            if is_cnn_planner:
+                predictions = model(image=image)
+            else:
+                predictions = model(track_left=track_left, track_right=track_right)
+
             # Compute loss (e.g., MSE)
             loss = criterion(predictions, waypoints)
             loss.backward()
@@ -78,7 +89,6 @@ def train(
 
             total_longitudinal_error += longitudinal_error.sum().item()
             total_lateral_error += lateral_error.sum().item()
-            
             train_loss += loss.item()
 
         # Average loss over the epoch
@@ -94,13 +104,22 @@ def train(
 
         with torch.no_grad():
             for batch in val_loader:
-                track_left = batch["track_left"].to(device)
-                track_right = batch["track_right"].to(device)
-                waypoints = batch["waypoints"].to(device)
-                waypoints_mask = batch["waypoints_mask"].to(device)
+                if is_cnn_planner:
+                    image = batch["image"].to(device)
+                    waypoints = batch["waypoints"].to(device)
+                    waypoints_mask = batch["waypoints_mask"].to(device)
+                else:
+                    track_left = batch["track_left"].to(device)
+                    track_right = batch["track_right"].to(device)
+                    waypoints = batch["waypoints"].to(device)
+                    waypoints_mask = batch["waypoints_mask"].to(device)
 
                 waypoints = waypoints * waypoints_mask.unsqueeze(-1)
-                predictions = model(track_left=track_left, track_right=track_right)
+                if is_cnn_planner:
+                    predictions = model(image=image)
+                else:
+                    predictions = model(track_left=track_left, track_right=track_right)
+
                 loss = criterion(predictions, waypoints)
 
                 # Calculate longitudinal and lateral errors for validation
@@ -109,7 +128,6 @@ def train(
 
                 val_longitudinal_error += longitudinal_error.sum().item()
                 val_lateral_error += lateral_error.sum().item()
-
                 val_loss += loss.item()
 
         val_loss /= len(val_loader)
