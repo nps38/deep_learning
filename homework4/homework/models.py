@@ -101,37 +101,37 @@ class TransformerPlanner(nn.Module):
         model(track_left=..., track_right=...), so keep the function signature as is.
 
         Args:
-            track_left (torch.Tensor): shape (b, n_track, 2)
-            track_right (torch.Tensor): shape (b, n_track, 2)
+            track_left (torch.Tensor): shape (B, n_track, 2)
+            track_right (torch.Tensor): shape (B, n_track, 2)
 
         Returns:
-            torch.Tensor: future waypoints with shape (b, n_waypoints, 2)
+            torch.Tensor: future waypoints with shape (B, n_waypoints, 2)
         """
         B = track_left.size(0)
         
         # Combine left and right tracks
         x = torch.cat([track_left, track_right], dim=1)  # Shape: (B, n_track * 2, 2)
-        print(f"x (after concatenation): {x.shape}")
-
+        # print(f"x (after concatenation): {x.shape}")
+        
         # Embed input points
         x = self.input_embed(x)  # Shape: (B, n_track * 2, d_model)
-        print(f"x (after input embedding): {x.shape}")
+        # print(f"x (after input embedding): {x.shape}")
 
         # Apply Transformer encoder to get encoded features of track boundaries
         enc_output = self.encoder(x.permute(1, 0, 2))  # Shape: (n_track * 2, B, d_model)
-        print(f"enc_output (after transformer encoder): {enc_output.shape}")
+        # print(f"enc_output (after transformer encoder): {enc_output.shape}")
 
         # Query waypoints
         queries = self.query_embed.weight.unsqueeze(1).expand(-1, B, -1)  # Shape: (n_waypoints, B, d_model)
-        print(f"queries: {queries.shape}")
+        # print(f"queries: {queries.shape}")
 
         # Apply Transformer decoder (cross-attention mechanism)
-        waypoint_features = self.decoder(queries.permute(1, 0, 2), enc_output)  # Shape: (n_waypoints, B, d_model)
-        print(f"waypoint_features (after transformer decoder): {waypoint_features.shape}")
+        waypoint_features = self.decoder(queries, enc_output)  # Shape: (n_waypoints, B, d_model)
+        # print(f"waypoint_features (after transformer decoder): {waypoint_features.shape}")
 
         # Output waypoints
-        waypoints = self.fc_out(waypoint_features)  # Shape: (B, n_waypoints, 2)
-        print(f"waypoints (after fc_out): {waypoints.shape}")
+        waypoints = self.fc_out(waypoint_features.permute(1, 0, 2))  # Shape: (B, n_waypoints, 2)
+        # print(f"waypoints (after fc_out): {waypoints.shape}")
 
         return waypoints
 
