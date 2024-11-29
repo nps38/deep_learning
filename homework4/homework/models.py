@@ -68,7 +68,7 @@ class TransformerPlanner(nn.Module):
         d_model: int = 64,
         nhead: int = 4,
         num_layers: int = 2,
-        dropout_rate: float = 0.5,
+        dropout_rate: float = 0.2,
     ):
         super().__init__()
 
@@ -121,7 +121,7 @@ class CNNPlanner(torch.nn.Module):
         self,
         n_track: int = 10,
         n_waypoints: int = 3,
-        dropout_rate: float = 0.5,
+        dropout_rate: float = 0,
     ):
         super().__init__()
 
