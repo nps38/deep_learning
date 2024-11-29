@@ -25,7 +25,7 @@ def train(
 
     # Load dataset
     train_loader = load_data(
-        dataset_path="drive_data/train",  # Replace with the actual path
+        dataset_path="drive_data/train",
         transform_pipeline=transform_pipeline,
         return_dataloader=True,
         num_workers=num_workers,
@@ -33,7 +33,7 @@ def train(
         shuffle=True,
     )
     val_loader = load_data(
-        dataset_path="drive_data/val",  # Replace with the actual path
+        dataset_path="drive_data/val",
         transform_pipeline=transform_pipeline,
         return_dataloader=True,
         num_workers=num_workers,
@@ -43,10 +43,10 @@ def train(
 
     # Initialize model
     model = load_model(model_name, n_track=10, n_waypoints=3, dropout_rate=0.5).to(device)
-    criterion = nn.MSELoss()  # Suitable for real-valued regression
+    criterion = nn.MSELoss()
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 
-    is_cnn_planner = model_name.lower() == "cnn_planner"  # Check if the model is CNNPlanner
+    is_cnn_planner = model_name.lower() == "cnn_planner"
 
     # Training loop
     for epoch in range(num_epoch):
@@ -57,21 +57,17 @@ def train(
 
         for batch in train_loader:
             if is_cnn_planner:
-                # For CNNPlanner: Use image input
-                image = batch["image"].to(device)  # (B, 3, 96, 128)
-                waypoints = batch["waypoints"].to(device)  # (B, n_waypoints, 2)
-                waypoints_mask = batch["waypoints_mask"].to(device)  # (B, n_waypoints)
+                image = batch["image"].to(device)
+                waypoints = batch["waypoints"].to(device)
+                waypoints_mask = batch["waypoints_mask"].to(device)
             else:
-                # For TransformerPlanner/MLPPlanner: Use track inputs
-                track_left = batch["track_left"].to(device)  # (B, n_track, 2)
-                track_right = batch["track_right"].to(device)  # (B, n_track, 2)
-                waypoints = batch["waypoints"].to(device)  # (B, n_waypoints, 2)
-                waypoints_mask = batch["waypoints_mask"].to(device)  # (B, n_waypoints)
+                track_left = batch["track_left"].to(device)
+                track_right = batch["track_right"].to(device)
+                waypoints = batch["waypoints"].to(device)
+                waypoints_mask = batch["waypoints_mask"].to(device)
 
-            # Mask waypoints for clean targets
             waypoints = waypoints * waypoints_mask.unsqueeze(-1)
 
-            # Forward pass
             optimizer.zero_grad()
             if is_cnn_planner:
                 predictions = model(image=image)
@@ -84,8 +80,8 @@ def train(
             optimizer.step()
 
             # Calculate longitudinal and lateral errors for this batch
-            longitudinal_error = torch.abs(predictions[:, :, 0] - waypoints[:, :, 0])  # x-axis error
-            lateral_error = torch.abs(predictions[:, :, 1] - waypoints[:, :, 1])  # y-axis error
+            longitudinal_error = torch.abs(predictions[:, :, 0] - waypoints[:, :, 0])
+            lateral_error = torch.abs(predictions[:, :, 1] - waypoints[:, :, 1])
 
             total_longitudinal_error += longitudinal_error.sum().item()
             total_lateral_error += lateral_error.sum().item()
@@ -123,8 +119,8 @@ def train(
                 loss = criterion(predictions, waypoints)
 
                 # Calculate longitudinal and lateral errors for validation
-                longitudinal_error = torch.abs(predictions[:, :, 0] - waypoints[:, :, 0])  # x-axis error
-                lateral_error = torch.abs(predictions[:, :, 1] - waypoints[:, :, 1])  # y-axis error
+                longitudinal_error = torch.abs(predictions[:, :, 0] - waypoints[:, :, 0])
+                lateral_error = torch.abs(predictions[:, :, 1] - waypoints[:, :, 1])
 
                 val_longitudinal_error += longitudinal_error.sum().item()
                 val_lateral_error += lateral_error.sum().item()
@@ -144,7 +140,7 @@ def train(
 
         # Save the model
         model_path = save_model(model)
-        print(f"Model saved at {model_path}")
+        # print(f"Model saved at {model_path}")
 
 
 if __name__ == "__main__":

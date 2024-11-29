@@ -26,8 +26,6 @@ class MLPPlanner(nn.Module):
         self.n_track = n_track
         self.n_waypoints = n_waypoints
         self.dropout_rate = dropout_rate
-        
-        # Define the MLP layers
         self.fc1 = nn.Linear(n_track * 4, 128)
         self.fc2 = nn.Linear(128, 64)
         self.fc3 = nn.Linear(64, n_waypoints * 2)
@@ -70,27 +68,19 @@ class TransformerPlanner(nn.Module):
         d_model: int = 64,
         nhead: int = 4,
         num_layers: int = 2,
+        dropout_rate: float = 0.5,
     ):
         super().__init__()
 
         self.n_track = n_track
         self.n_waypoints = n_waypoints
-
-        # Embedding for input points
-        self.input_embed = nn.Linear(2, d_model)  # Embed (x, y) coordinates into d_model
-
-        # Transformer encoder
-        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead)
+        self.input_embed = nn.Linear(2, d_model)
+        self.dropout = nn.Dropout(p=dropout_rate)
+        encoder_layer = nn.TransformerEncoderLayer(d_model=d_model, nhead=nhead, dropout=dropout_rate)
         self.encoder = nn.TransformerEncoder(encoder_layer, num_layers=num_layers)
-
-        # Query embeddings for waypoints
         self.query_embed = nn.Embedding(n_waypoints, d_model)
-        
-        # Transformer decoder
-        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead)
+        decoder_layer = nn.TransformerDecoderLayer(d_model=d_model, nhead=nhead, dropout=dropout_rate)
         self.decoder = nn.TransformerDecoder(decoder_layer, num_layers=num_layers)
-
-        # Output layer to predict waypoints
         self.fc_out = nn.Linear(d_model, 2)
 
     def forward(
@@ -114,29 +104,14 @@ class TransformerPlanner(nn.Module):
         """
         B = track_left.size(0)
         
-        # Combine left and right tracks
-        x = torch.cat([track_left, track_right], dim=1)  # Shape: (B, n_track * 2, 2)
-        # print(f"x (after concatenation): {x.shape}")
-        
-        # Embed input points
-        x = self.input_embed(x)  # Shape: (B, n_track * 2, d_model)
-        # print(f"x (after input embedding): {x.shape}")
+        x = torch.cat([track_left, track_right], dim=1)
+        x = self.input_embed(x)
+        x = self.dropout(x)
 
-        # Apply Transformer encoder to get encoded features of track boundaries
-        enc_output = self.encoder(x.permute(1, 0, 2))  # Shape: (n_track * 2, B, d_model)
-        # print(f"enc_output (after transformer encoder): {enc_output.shape}")
-
-        # Query waypoints
-        queries = self.query_embed.weight.unsqueeze(1).expand(-1, B, -1)  # Shape: (n_waypoints, B, d_model)
-        # print(f"queries: {queries.shape}")
-
-        # Apply Transformer decoder (cross-attention mechanism)
-        waypoint_features = self.decoder(queries, enc_output)  # Shape: (n_waypoints, B, d_model)
-        # print(f"waypoint_features (after transformer decoder): {waypoint_features.shape}")
-
-        # Output waypoints
-        waypoints = self.fc_out(waypoint_features.permute(1, 0, 2))  # Shape: (B, n_waypoints, 2)
-        # print(f"waypoints (after fc_out): {waypoints.shape}")
+        enc_output = self.encoder(x.permute(1, 0, 2))
+        queries = self.query_embed.weight.unsqueeze(1).expand(-1, B, -1)
+        waypoint_features = self.decoder(queries, enc_output)
+        waypoints = self.fc_out(waypoint_features.permute(1, 0, 2))
 
         return waypoints
 
@@ -146,6 +121,7 @@ class CNNPlanner(torch.nn.Module):
         self,
         n_track: int = 10,
         n_waypoints: int = 3,
+        dropout_rate: float = 0.5,
     ):
         super().__init__()
 
@@ -155,11 +131,10 @@ class CNNPlanner(torch.nn.Module):
         self.register_buffer("input_mean", torch.as_tensor(INPUT_MEAN), persistent=False)
         self.register_buffer("input_std", torch.as_tensor(INPUT_STD), persistent=False)
         
-        # Define CNN backbone
-        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)  # Output: (16, 48, 64)
-        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)  # Output: (32, 24, 32)
-        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)  # Output: (64, 12, 16)
-        self.conv4 = nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1)  # Output: (128, 6, 8)
+        self.conv1 = nn.Conv2d(3, 16, kernel_size=3, stride=2, padding=1)
+        self.conv2 = nn.Conv2d(16, 32, kernel_size=3, stride=2, padding=1)
+        self.conv3 = nn.Conv2d(32, 64, kernel_size=3, stride=2, padding=1)
+        self.conv4 = nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1)
 
         self.flatten = nn.Flatten()
         self.fc1 = nn.Linear(128 * 6 * 8, 256)
@@ -175,7 +150,6 @@ class CNNPlanner(torch.nn.Module):
         """
         x = image
         x = (x - self.input_mean[None, :, None, None]) / self.input_std[None, :, None, None]
-
         x = F.relu(self.conv1(image))
         x = F.relu(self.conv2(x))
         x = F.relu(self.conv3(x))
