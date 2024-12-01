@@ -42,8 +42,8 @@ def train(
     )
 
     # Initialize model
-    model = load_model(model_name, n_track=10, n_waypoints=3, dropout_rate=0.5).to(device)
-    criterion = nn.MSELoss()
+    model = load_model(model_name, n_track=10, n_waypoints=3, dropout_rate=0.1).to(device)
+    criterion = nn.L1Loss()
     optimizer = Adam(model.parameters(), lr=lr, weight_decay=1e-4)
 
     is_cnn_planner = model_name.lower() == "cnn_planner"
@@ -110,13 +110,17 @@ def train(
                     waypoints = batch["waypoints"].to(device)
                     waypoints_mask = batch["waypoints_mask"].to(device)
 
-                waypoints = waypoints * waypoints_mask.unsqueeze(-1)
+                # waypoints = waypoints * waypoints_mask.unsqueeze(-1)
                 if is_cnn_planner:
                     predictions = model(image=image)
                 else:
                     predictions = model(track_left=track_left, track_right=track_right)
+                    
+                masked_predictions = predictions * waypoints_mask.unsqueeze(-1)
+                masked_waypoints = waypoints * waypoints_mask.unsqueeze(-1)
 
-                loss = criterion(predictions, waypoints)
+                # loss = criterion(predictions, waypoints)
+                loss = criterion(masked_predictions, masked_waypoints)
 
                 # Calculate longitudinal and lateral errors for validation
                 longitudinal_error = torch.abs(predictions[:, :, 0] - waypoints[:, :, 0])

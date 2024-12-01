@@ -68,7 +68,7 @@ class TransformerPlanner(nn.Module):
         d_model: int = 64,
         nhead: int = 4,
         num_layers: int = 2,
-        dropout_rate: float = 0.2,
+        dropout_rate: float = 0.1,
     ):
         super().__init__()
 
